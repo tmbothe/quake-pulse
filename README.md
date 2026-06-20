@@ -117,29 +117,14 @@ Key properties:
 
 ## Step Functions Workflow
 
-```
-                    ┌─────────────────────────┐
-                    │         START           │
-                    └────────────┬────────────┘
-                                 │
-                    ┌────────────▼────────────┐
-                    │        Dispatch         │
-                    │  (waitForTaskToken)     │  ◄── Dispatcher Lambda fans out
-                    │   TimeoutSeconds=86400  │       pages to SQS, then waits
-                    └────────┬───────┬────────┘       for Detector to signal back
-                             │       │
-                     success │       │ catch(States.ALL)
-                             │       │
-              ┌──────────────▼──┐  ┌─▼──────────────────┐
-              │   RunComplete   │  │   AlertOnFailure    │
-              │    (Succeed)    │  │  SNS.publish(error) │
-              └─────────────────┘  └────────┬────────────┘
-                                            │
-                                   ┌────────▼────────┐
-                                   │    RunFailed    │
-                                   │     (Fail)      │
-                                   └─────────────────┘
-```
+![Step Functions State Machine](aws_aic/images/step_functions.jpg)
+
+| State | Type | Description |
+|---|---|---|
+| **Dispatch** | Task (`waitForTaskToken`) | Invokes Dispatcher Lambda; pauses until Detector signals back (up to 24 h) |
+| **AlertOnFailure** | Task (SNS Publish) | Publishes error details to the SNS alert topic on any caught exception |
+| **RunComplete** | Succeed | Terminal success state — execution marked green |
+| **RunFailed** | Fail | Terminal failure state — execution marked red |
 
 **Callback pattern:** The Dispatcher embeds `taskToken` in every SQS message. Workers forward it to the Detector via DynamoDB (META record). When the last page completes, the Detector calls `SendTaskSuccess`/`SendTaskFailure` to resume the paused Step Functions execution — no polling required.
 
