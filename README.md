@@ -1,4 +1,4 @@
-# Quake Pulse — Serverless Earthquake Ingestion Pipeline on AWS
+# Architect and deploy AWS Serverless project: Quake Pulse case
 
 > A production-grade, fully serverless data ingestion pipeline that continuously harvests global earthquake data from the USGS Earthquake Hazards Program API into Amazon S3, orchestrated by AWS Step Functions and deployed entirely through Terraform.
 
@@ -46,26 +46,9 @@ Key properties:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          QUAKE PULSE PIPELINE                               │
-├──────────────┬──────────────────┬─────────────────────────┬────────────────┤
-│   TRIGGER    │    DISPATCH      │  PROCESS (concurrent)   │   COMPLETE     │
-│              │                  │                         │                │
-│  EventBridge │  Step Functions  │  SQS Work Queue         │  Detector λ    │
-│  cron rule   │  Standard        │  ┌──────────────┐       │                │
-│  01:00 UTC   │  Workflow        │  │ Worker λ #1  │──► S3 │  DynamoDB      │
-│      │       │  waitForToken    │  │ Worker λ #2  │──► S3 │  stream        │
-│      │       │      │           │  │ Worker λ … N │──► S3 │  filter        │
-│      ▼       │      ▼           │  └──────────────┘       │      │         │
-│  StartExec   │  Dispatcher λ    │  max 10 concurrent      │      ▼         │
-│              │  /count per day  │                         │  SendTask      │
-│              │  fan-out to SQS  │  DynamoDB Checkpoint    │  Success/Fail  │
-│              │                  │  RUNNING→SUCCESS/FAILED │                │
-│              │                  │                         │  SNS alert     │
-│              │                  │  KMS-encrypted S3 write │  on failure    │
-└──────────────┴──────────────────┴─────────────────────────┴────────────────┘
-```
+![Quake Pulse — AWS Architecture Diagram](aws_aic/images/diagram.png)
+
+> **4-phase pipeline:** EventBridge triggers Step Functions → Dispatcher fans out SQS messages (one per USGS page) → up to 10 concurrent Worker Lambdas fetch data and write to S3 → Completion Detector signals Step Functions via DynamoDB stream when all pages finish.
 
 ### AWS Services Used
 
